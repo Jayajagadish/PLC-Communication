@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLC Dashboard - Vibrofeeder & Blower Control v3.0</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #2d3561);
+            color: #eee;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        
+        .header {
+            background: linear-gradient(135deg, #0f3460, #16213e);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+        .header h1 { color: #00d9ff; font-size: 2.2em; margin-bottom: 15px; }
+        .status-bar { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .status-item { background: rgba(255,255,255,0.1); padding: 12px 25px; border-radius: 8px; }
+        .status-connected { background: #4caf50; color: white; font-weight: bold; }
+        .status-disconnected { background: #f44336; color: white; font-weight: bold; }
+        
+        .mode-panel {
+            background: linear-gradient(135deg, #2d3561, #1f2647);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 3px solid #ff9800;
+        }
+        .mode-panel h3 { color: #ff9800; font-size: 1.5em; margin-bottom: 20px; }
+        .mode-status { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
+        .mode-item { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; text-align: center; border: 2px solid transparent; }
+        .mode-active { background: rgba(76,175,80,0.3); border-color: #4caf50; box-shadow: 0 0 20px rgba(76,175,80,0.5); }
+        .mode-label { font-size: 0.9em; color: #aaa; margin-bottom: 10px; }
+        .mode-value { font-size: 1.8em; font-weight: bold; }
+        .mode-value-on { color: #4caf50; }
+        .mode-value-off { color: #f44336; }
+        
+        .mode-info {
+            background: rgba(0,217,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        
+        .emergency-stop {
+            background: linear-gradient(135deg, #f44336, #d32f2f);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            text-align: center;
+            border: 3px solid #ff5252;
+        }
+        .emergency-btn {
+            background: #ff1744;
+            color: white;
+            border: 3px solid white;
+            padding: 20px 50px;
+            font-size: 1.5em;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            animation: pulse-emergency 2s infinite;
+        }
+        .emergency-btn:hover:not(:disabled) {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(255,23,68,0.8);
+        }
+        @keyframes pulse-emergency {
+            0%, 100% { box-shadow: 0 0 20px rgba(255,23,68,0.5); }
+            50% { box-shadow: 0 0 40px rgba(255,23,68,1); }
+        }
+        
+        .control-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 25px; margin-bottom: 25px; }
+        
+        .panel {
+            background: linear-gradient(135deg, #2d3561, #1f2647);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            border: 3px solid #00d9ff;
+        }
+        .panel-disabled { opacity: 0.5; border-color: #666; }
+        
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .panel-title { font-size: 2em; font-weight: bold; color: #00d9ff; }
+        .panel-status { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.3em; }
+        .status-on { background: radial-gradient(circle, #4caf50, #2e7d32); color: white; animation: pulse 2s infinite; }
+        .status-off { background: radial-gradient(circle, #666, #444); color: #ccc; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+        
+        .info-box { background: rgba(0,217,255,0.15); padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; line-height: 1.8; }
+        .info-box strong { color: #00d9ff; }
+        
+        .speed-control {
+            background: rgba(255,152,0,0.1);
+            border: 2px solid #ff9800;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .speed-label { font-size: 1.3em; color: #ff9800; font-weight: bold; margin-bottom: 15px; text-align: center; }
+        
+        .percentage-display {
+            font-size: 3.5em;
+            color: #00d9ff;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            padding: 25px;
+            background: rgba(0,217,255,0.1);
+            border-radius: 10px;
+            border: 3px solid #00d9ff;
+        }
+        
+        .speed-value-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(76,175,80,0.1);
+            border-radius: 8px;
+            border: 2px solid #4caf50;
+        }
+        .speed-value-label { font-size: 1.1em; color: #aaa; }
+        .speed-value-number { font-size: 1.5em; color: #4caf50; font-weight: bold; }
+        
+        .slider-container { margin: 25px 0; }
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        .slider {
+            width: 100%;
+            height: 20px;
+            border-radius: 10px;
+            background: linear-gradient(to right, #2e7d32, #ff9800, #f44336);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: #00d9ff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0,217,255,0.8);
+        }
+        .slider:disabled::-webkit-slider-thumb { background: #666; cursor: not-allowed; }
+        
+        .speed-input-group { display: flex; gap: 15px; align-items: center; margin-top: 20px; }
+        .speed-input {
+            flex: 1;
+            padding: 20px;
+            font-size: 2em;
+            text-align: center;
+            border: 3px solid #ff9800;
+            border-radius: 10px;
+            background: #1f2647;
+            color: #00d9ff;
+            font-weight: bold;
+        }
+        .speed-input:disabled { background: #333; color: #666; border-color: #666; }
+        .speed-input:focus { outline: none; border-color: #00d9ff; box-shadow: 0 0 15px rgba(0,217,255,0.5); }
+        
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .btn {
+            padding: 18px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-on { background: linear-gradient(135deg, #4caf50, #45a049); color: white; }
+        .btn-off { background: linear-gradient(135deg, #f44336, #da190b); color: white; }
+        .btn-set { 
+            background: linear-gradient(135deg, #ff9800, #f57c00); 
+            color: white; 
+            padding: 20px; 
+            font-size: 1.3em;
+            box-shadow: 0 4px 15px rgba(255,152,0,0.5);
+        }
+        .btn-set:hover:not(:disabled) { box-shadow: 0 6px 25px rgba(255,152,0,0.8); }
+        
+        .quick-values {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .quick-btn {
+            padding: 12px 8px;
+            background: rgba(0,217,255,0.2);
+            border: 2px solid #00d9ff;
+            border-radius: 8px;
+            color: #00d9ff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+        .quick-btn:hover:not(:disabled) {
+            background: rgba(0,217,255,0.4);
+            transform: scale(1.05);
+        }
+        .quick-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        
+        .refresh-btn { background: linear-gradient(135deg, #00d9ff, #00b8d9); color: #000; padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .timestamp { text-align: center; color: #888; margin-top: 25px; }
+        
+        @media (max-width: 768px) {
+            .control-grid, .mode-status { grid-template-columns: 1fr; }
+            .quick-values { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏭Dcmp IOT Control Panel</h1>
+            <div class="status-bar">
+                <div id="connectionStatus" class="status-item status-disconnected">⚠️ Connecting...</div>
+                <div class="status-item">Last Update: <span id="lastUpdate">-</span></div>
+                <button class="refresh-btn" onclick="loadStatus()">🔄 Refresh</button>
+            </div>
+        </div>
+
+        <div class="mode-panel">
+            <h3>⚙️ Operation Mode (X2 = Remote)</h3>
+            <div class="mode-status">
+                <div id="x2Panel" class="mode-item">
+                    <div class="mode-label">X2 (REMOTE MODE)</div>
+                    <div id="x2Value" class="mode-value mode-value-off">-</div>
+                </div>
+                <div id="m1Panel" class="mode-item">
+                    <div class="mode-label">M1 (MASTER CONTROL)</div>
+                    <div id="m1Value" class="mode-value mode-value-off">-</div>
+                </div>
+            </div>
+            <div class="mode-info" id="modeInfo">
+                <strong id="currentModeText">-</strong>
+            </div>
+        </div>
+
+        <div class="emergency-stop">
+            <h3 style="color: white; margin-bottom: 15px;">🚨 EMERGENCY STOP 🚨</h3>
+            <button class="emergency-btn" onclick="emergencyStop()" id="emergencyBtn" disabled>
+                ⛔ STOP ALL DEVICES
+            </button>
+        </div>
+
+        <div class="control-grid">
+            <!-- BLOWER PANEL (Y0 = M100) -->
+            <div id="blowerPanel" class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">💨 Blower</div>
+                    <div id="blowerStatus" class="panel-status status-off">OFF</div>
+                </div>
+                
+                <div class="info-box">
+                    <strong>Y0 Output:</strong> <span id="blowerY" style="font-weight:bold;">-</span><br>
+                    <strong>M100 (Enable):</strong> <span id="blowerM100">-</span> |
+                    <strong>M101 (Interlock):</strong> <span id="blowerM101">-</span>
+                </div>
+                
+                <div class="controls">
+                    <button id="blowerOnBtn" class="btn btn-on" onclick="controlBlower(true)" disabled>⚡ START BLOWER</button>
+                    <button id="blowerOffBtn" class="btn btn-off" onclick="controlBlower(false)" disabled>🛑 STOP BLOWER</button>
+                </div>
+            </div>
+
+            <!-- VIBROFEEDER PANEL (Y1 = M102) -->
+            <div id="vibroPanel" class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📳 Vibrofeeder</div>
+                    <div id="vibroStatus" class="panel-status status-off">OFF</div>
+                </div>
+                
+                <div class="info-box">
+                    <strong>Y1 Output:</strong> <span id="vibroY" style="font-weight:bold;">-</span><br>
+                    <strong>M102 (Enable):</strong> <span id="vibroM102">-</span> |
+                    <strong>M103 (Interlock):</strong> <span id="vibroM103">-</span>
+                </div>
+                
+                <div class="controls">
+                    <button id="vibroOnBtn" class="btn btn-on" onclick="controlVibro(true)" disabled>⚡ START VIBRO</button>
+                    <button id="vibroOffBtn" class="btn btn-off" onclick="controlVibro(false)" disabled>🛑 STOP VIBRO</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPEED CONTROL PANEL (D1116) -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">⚡ Vibrofeeder Speed Control</div>
+            </div>
+            
+            <div class="speed-control">
+                <div class="speed-label">📊 Speed Control via D1116</div>
+                
+                <div class="percentage-display" id="percentDisplay">0%</div>
+                
+                <div class="speed-value-row">
+                    <span class="speed-value-label">D1116 Value:</span>
+                    <span class="speed-value-number" id="d1116ValueDisplay">0</span>
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-labels">
+                        <span>0 (0%)</span>
+                        <span>500</span>
+                        <span>1000 (50%)</span>
+                        <span>1500</span>
+                        <span>2000 (100%)</span>
+                    </div>
+                    <input type="range" min="0" max="2000" value="0" step="50" class="slider" id="speedSlider" disabled>
+                </div>
+                
+                <div class="speed-input-group">
+                    <input type="number" id="speedInput" class="speed-input" min="0" max="2000" value="0" step="50" placeholder="0-2000" disabled>
+                    <button id="setSpeedBtn" class="btn btn-set" onclick="setSpeed()" disabled>✓ SET SPEED</button>
+                </div>
+                
+                <div class="quick-values">
+                    <button class="quick-btn" onclick="quickSetSpeed(500)" disabled id="quick500">25%<br>→500</button>
+                    <button class="quick-btn" onclick="quickSetSpeed(1000)" disabled id="quick1000">50%<br>→1000</button>
+                    <button class="quick-btn" onclick="quickSetSpeed(1500)" disabled id="quick1500">75%<br>→1500</button>
+                    <button class="quick-btn" onclick="quickSetSpeed(2000)" disabled id="quick2000">100%<br>→2000</button>
+                    <button class="quick-btn" onclick="quickSetSpeed(0)" disabled id="quick0">0%<br>→0</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="timestamp" id="timestamp"></div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+        let autoRefresh = null;
+        let remoteMode = false;
+
+        window.onload = function() {
+            loadStatus();
+            autoRefresh = setInterval(loadStatus, 2000);
+            
+            document.getElementById('speedSlider').addEventListener('input', function() {
+                updateSpeedDisplays(parseInt(this.value));
+                document.getElementById('speedInput').value = this.value;
+            });
+            
+            document.getElementById('speedInput').addEventListener('input', function() {
+                const val = Math.min(2000, Math.max(0, parseInt(this.value) || 0));
+                updateSpeedDisplays(val);
+                document.getElementById('speedSlider').value = val;
+            });
+        };
+
+        function updateSpeedDisplays(d1116Value) {
+            const percent = Math.round((d1116Value / 2000) * 100);
+            document.getElementById('percentDisplay').textContent = percent + '%';
+            document.getElementById('d1116ValueDisplay').textContent = d1116Value;
+        }
+
+        async function loadStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/status`);
+                if (!res.ok) throw new Error('Failed to fetch');
+                
+                const data = await res.json();
+                
+                // Connection status
+                const connEl = document.getElementById('connectionStatus');
+                connEl.className = 'status-item ' + (data.connected ? 'status-connected' : 'status-disconnected');
+                connEl.textContent = data.connected ? '✅ Connected' : '❌ Disconnected';
+                
+                // Check remote mode (X2 and M1)
+                const x2On = data.x_inputs.X2 || false;
+                const m1On = data.m_coils.M1 || false;
+                remoteMode = x2On && m1On;
+                
+                updateModeDisplay(x2On, m1On);
+                
+                // Read D1116 for speed (need to fetch it separately)
+                fetchD1116();
+                
+                // Update device status
+                updateBlower(data.y_outputs.Y0, data.m_coils.M100, data.m_coils.M101);
+                updateVibro(data.y_outputs.Y1, data.m_coils.M102, data.m_coils.M103);
+                
+                const now = new Date();
+                document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+                document.getElementById('timestamp').textContent = `Last updated: ${now.toLocaleString()}`;
+                
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function fetchD1116() {
+            try {
+                const res = await fetch(`${API_BASE}/d/1116`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && !document.getElementById('speedInput').matches(':focus')) {
+                        const value = data.value || 0;
+                        document.getElementById('speedInput').value = value;
+                        document.getElementById('speedSlider').value = value;
+                        updateSpeedDisplays(value);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching D1116:', error);
+            }
+        }
+
+        function updateModeDisplay(x2On, m1On) {
+            // X2 status
+            document.getElementById('x2Value').textContent = x2On ? 'ON' : 'OFF';
+            document.getElementById('x2Value').className = 'mode-value ' + (x2On ? 'mode-value-on' : 'mode-value-off');
+            document.getElementById('x2Panel').className = 'mode-item ' + (x2On ? 'mode-active' : '');
+            
+            // M1 status
+            document.getElementById('m1Value').textContent = m1On ? 'ON' : 'OFF';
+            document.getElementById('m1Value').className = 'mode-value ' + (m1On ? 'mode-value-on' : 'mode-value-off');
+            document.getElementById('m1Panel').className = 'mode-item ' + (m1On ? 'mode-active' : '');
+            
+            // Mode info
+            const modeText = document.getElementById('currentModeText');
+            const modeInfo = document.getElementById('modeInfo');
+            
+            if (remoteMode) {
+                modeText.textContent = '🟢 REMOTE MODE ACTIVE - Dashboard control ENABLED';
+                modeText.style.color = '#4caf50';
+                modeInfo.style.borderColor = '#4caf50';
+                enableControls(true);
+            } else {
+                modeText.textContent = '🔴 REMOTE MODE INACTIVE - Dashboard control DISABLED';
+                modeText.style.color = '#f44336';
+                modeInfo.style.borderColor = '#f44336';
+                enableControls(false);
+            }
+        }
+
+        function enableControls(enable) {
+            // Speed controls
+            document.getElementById('speedInput').disabled = !enable;
+            document.getElementById('speedSlider').disabled = !enable;
+            document.getElementById('setSpeedBtn').disabled = !enable;
+            document.getElementById('quick500').disabled = !enable;
+            document.getElementById('quick1000').disabled = !enable;
+            document.getElementById('quick1500').disabled = !enable;
+            document.getElementById('quick2000').disabled = !enable;
+            document.getElementById('quick0').disabled = !enable;
+            
+            // Device controls
+            document.getElementById('blowerOnBtn').disabled = !enable;
+            document.getElementById('blowerOffBtn').disabled = !enable;
+            document.getElementById('blowerPanel').className = 'panel' + (enable ? '' : ' panel-disabled');
+            
+            document.getElementById('vibroOnBtn').disabled = !enable;
+            document.getElementById('vibroOffBtn').disabled = !enable;
+            document.getElementById('vibroPanel').className = 'panel' + (enable ? '' : ' panel-disabled');
+            
+            document.getElementById('emergencyBtn').disabled = !enable;
+        }
+
+        function updateBlower(yState, m100State, m101State) {
+            const statusEl = document.getElementById('blowerStatus');
+            statusEl.textContent = yState ? 'ON' : 'OFF';
+            statusEl.className = 'panel-status ' + (yState ? 'status-on' : 'status-off');
+            document.getElementById('blowerY').textContent = yState ? 'ON' : 'OFF';
+            document.getElementById('blowerY').style.color = yState ? '#4caf50' : '#f44336';
+            document.getElementById('blowerM100').textContent = m100State ? 'ON' : 'OFF';
+            document.getElementById('blowerM100').style.color = m100State ? '#4caf50' : '#f44336';
+            document.getElementById('blowerM101').textContent = m101State ? 'ON (LOCKED)' : 'OFF';
+            document.getElementById('blowerM101').style.color = m101State ? '#f44336' : '#4caf50';
+        }
+
+        function updateVibro(yState, m102State, m103State) {
+            const statusEl = document.getElementById('vibroStatus');
+            statusEl.textContent = yState ? 'ON' : 'OFF';
+            statusEl.className = 'panel-status ' + (yState ? 'status-on' : 'status-off');
+            document.getElementById('vibroY').textContent = yState ? 'ON' : 'OFF';
+            document.getElementById('vibroY').style.color = yState ? '#4caf50' : '#f44336';
+            document.getElementById('vibroM102').textContent = m102State ? 'ON' : 'OFF';
+            document.getElementById('vibroM102').style.color = m102State ? '#4caf50' : '#f44336';
+            document.getElementById('vibroM103').textContent = m103State ? 'ON (LOCKED)' : 'OFF';
+            document.getElementById('vibroM103').style.color = m103State ? '#f44336' : '#4caf50';
+        }
+
+        // ✅ CORRECT: Blower Control (Y0)
+        async function controlBlower(state) {
+            if (!remoteMode) {
+                alert('❌ Control only available in REMOTE mode!\\nEnsure X2=ON and M1=ON');
+                return;
+            }
+            
+            try {
+                // Disable interlock first
+                await fetch(`${API_BASE}/m/101`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: false})
+                });
+                
+                // Set M100
+                await fetch(`${API_BASE}/m/100`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: state})
+                });
+                
+                // Force Y0 directly
+                await fetch(`${API_BASE}/y/0`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: state})
+                });
+                
+                setTimeout(loadStatus, 300);
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        // ✅ CORRECT: Vibrofeeder Control (Y1)
+        async function controlVibro(state) {
+            if (!remoteMode) {
+                alert('❌ Control only available in REMOTE mode!\\nEnsure X2=ON and M1=ON');
+                return;
+            }
+            
+            try {
+                // Disable interlock first
+                await fetch(`${API_BASE}/m/103`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: false})
+                });
+                
+                // Set M102
+                await fetch(`${API_BASE}/m/102`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: state})
+                });
+                
+                // Force Y1 directly
+                await fetch(`${API_BASE}/y/1`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: state})
+                });
+                
+                setTimeout(loadStatus, 300);
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        // ✅ CORRECT: Speed Control (D1116)
+        async function setSpeed() {
+            if (!remoteMode) {
+                alert('❌ Control only available in REMOTE mode!');
+                return;
+            }
+            
+            const d1116Value = parseInt(document.getElementById('speedInput').value);
+            
+            if (isNaN(d1116Value) || d1116Value < 0 || d1116Value > 2000) {
+                alert('❌ Please enter a value between 0 and 2000');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/d/1116`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: d1116Value})
+                });
+                
+                const result = await res.json();
+                
+                if (result.success) {
+                    updateSpeedDisplays(d1116Value);
+                    console.log(`✅ Set speed to ${d1116Value}`);
+                    setTimeout(loadStatus, 200);
+                } else {
+                    alert('❌ Failed to set speed');
+                }
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        function quickSetSpeed(value) {
+            document.getElementById('speedInput').value = value;
+            document.getElementById('speedSlider').value = value;
+            updateSpeedDisplays(value);
+            setSpeed();
+        }
+
+        // ✅ Emergency Stop
+        async function emergencyStop() {
+            if (!confirm('⚠️ EMERGENCY STOP - Turn OFF all devices?')) {
+                return;
+            }
+            
+            try {
+                // Turn OFF both devices
+                await fetch(`${API_BASE}/m/100`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: false})
+                });
+                
+                await fetch(`${API_BASE}/m/102`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({state: false})
+                });
+                
+                // Set speed to 0
+                await fetch(`${API_BASE}/d/1116`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: 0})
+                });
+                
+                alert('✅ Emergency stop executed - All devices OFF');
+                setTimeout(loadStatus, 300);
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
